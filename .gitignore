@@ -1,0 +1,11 @@
+# uv / Python
+.venv/
+__pycache__/
+*.pyc
+
+# Datasets & model artifacts
+data/
+*.pth
+
+# Notebook checkpoints
+.ipynb_checkpoints/

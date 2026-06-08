@@ -1,0 +1,38 @@
+[project]
+name = "cifar10-resnet18"
+version = "0.1.0"
+description = "ResNet-18 on CIFAR-10 with adversarial attacks (FGSM/DeepFool/APGD) and defenses"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "torchattacks>=3.5",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "tqdm>=4.66",
+    "ipython>=8.0",
+    "ipykernel>=6.29",
+]
+
+[tool.uv]
+# Use the PyTorch CPU-only wheel index. Switch to "torch-cu128" below
+# (or remove these blocks) if you have an NVIDIA GPU.
+default-groups = []
+
+[[tool.uv.index]]
+name = "torch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "torch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "torch-cpu" }]
+torchvision = [{ index = "torch-cpu" }]
