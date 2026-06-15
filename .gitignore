@@ -9,3 +9,7 @@ data/
 
 # Notebook checkpoints
 .ipynb_checkpoints/
+
+# Run outputs (Kaggle downloads / exported figures)
+to/
+*.log
