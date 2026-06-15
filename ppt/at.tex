@@ -176,7 +176,7 @@
       \end{itemize}
     \end{column}
     \begin{column}{0.5\textwidth}
-      \textbf{结果}
+      \textbf{结果}（实际训练 \textbf{19} 轮，早停于第 17 轮取最佳）
       \begin{table}
       \centering\footnotesize
       \begin{tabular}{lc}
@@ -185,18 +185,24 @@
         \midrule
         最佳验证准确率 & 88.96\% \\
         测试 Top-1 准确率 & \alert{88.53\%} \\
-        测试 Top-3 准确率 & 98.14\% \\
+        测试 Macro-F1 & 88.50\% \\
         \bottomrule
       \end{tabular}
       \end{table}
       \vspace{0.4em}
-      \footnotesize 该模型作为后续所有攻击 / 防御实验的\textbf{基线（普通模型）}。
+      \footnotesize 该模型作为后续所有攻击 / 防御实验的\textbf{基线（普通模型）}，
+      权重存于 \texttt{resnet18\_cifar10\_best.pth}。
     \end{column}
   \end{columns}
-  \vspace{0.4em}
+\end{frame}
+
+\begin{frame}{训练曲线（Loss / Accuracy）}
   \begin{center}
-    \footnotesize\itshape （训练 Loss / Accuracy 曲线图：待插入）
+    \includegraphics[width=0.92\textwidth]{training_curves.pdf}
   \end{center}
+  \footnotesize
+  约第 6 轮（\texttt{StepLR} 首次衰减）后曲线明显跃升并迅速收敛；
+  验证准确率在第 17 轮达到峰值 \textbf{88.96\%}，此后连续 5 轮无提升触发早停（虚线处为最佳轮）。
 \end{frame}
 
 % ================================================================
