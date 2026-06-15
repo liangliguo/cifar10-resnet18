@@ -25,10 +25,42 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,calc,positioning}
 
-% ---------- 主题 ----------
-\usetheme{Madrid}
+% ---------- 主题：简洁自定义（无底栏，云南大学配色） ----------
+\usetheme{default}
+\useinnertheme{rectangles}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{caption}[numbered]
+
+% 云南大学主色（取自校徽）
+\definecolor{ynublue}{HTML}{005B94}
+\definecolor{ynugreen}{HTML}{2E7D32}
+
+\setbeamercolor{title}{fg=ynublue}
+\setbeamercolor{frametitle}{fg=ynublue}
+\setbeamercolor{structure}{fg=ynublue}
+\setbeamercolor{section in toc}{fg=ynublue}
+\setbeamercolor{item}{fg=ynublue}
+\setbeamercolor{block title}{fg=white,bg=ynublue}
+\setbeamercolor{block body}{bg=ynublue!6}
+\setbeamercolor{alerted text}{fg=ynugreen}
+\setbeamerfont{title}{series=\bfseries,size=\LARGE}
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+\setbeamertemplate{itemize items}[circle]
+
+% 帧标题：左标题 + 右上角小校徽 + 蓝色细线，干净不喧宾夺主
+\setbeamertemplate{frametitle}{%
+  \vspace{0.5em}%
+  \begin{minipage}{\dimexpr\textwidth-2.4em\relax}%
+    \raggedright\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle%
+  \end{minipage}%
+  \hfill\raisebox{-0.25em}{\includegraphics[height=1.9em]{logo_ynu.pdf}}%
+  \vskip2pt{\color{ynublue}\hrule height 0.8pt}%
+}
+
+% 去掉 Madrid 的彩色底栏，仅在右下角保留极简页码
+\setbeamertemplate{footline}{%
+  \hfill{\usebeamercolor[fg]{structure}\scriptsize\insertframenumber\,/\,\inserttotalframenumber}\hspace{1.4em}\vspace{1.6ex}%
+}
 
 % ---------- 数学算子 ----------
 \DeclareMathOperator*{\argmin}{arg\,min}
@@ -59,8 +91,16 @@
 \begin{document}
 
 % ============ 封面 ============
-\begin{frame}
-  \titlepage
+\begin{frame}[plain]
+  \centering
+  \vfill
+  \includegraphics[height=2.8cm]{logo_ynu.pdf}\\[1.2em]
+  {\usebeamerfont{title}\usebeamercolor[fg]{title}\inserttitle}\\[0.4em]
+  {\color{ynublue}\rule{0.55\textwidth}{0.9pt}}\\[0.6em]
+  {\large\insertsubtitle}\\[1.6em]
+  {\insertauthor}\\[1.0em]
+  {\small\insertdate}
+  \vfill
 \end{frame}
 
 % ============ 目录 ============
@@ -467,12 +507,12 @@
 \begin{frame}{实测结果：混淆矩阵（对抗样本上）}
   \begin{columns}[T]
     \begin{column}{0.5\textwidth}
-      \centering FGSM\\[0.3em]
-      \includegraphics[width=\linewidth]{confusion_fgsm.pdf}
+      \centering FGSM\\[0.2em]
+      \includegraphics[width=0.9\linewidth]{confusion_fgsm.pdf}
     \end{column}
     \begin{column}{0.5\textwidth}
-      \centering DeepFool\\[0.3em]
-      \includegraphics[width=\linewidth]{confusion_deepfool.pdf}
+      \centering DeepFool\\[0.2em]
+      \includegraphics[width=0.9\linewidth]{confusion_deepfool.pdf}
     \end{column}
   \end{columns}
   \vspace{0.3em}
