@@ -1,8 +1,8 @@
-
 % !TEX program = xelatex
 % ============================================================
-%  DeepFool 对抗攻击 —— 详细讲解 Beamer 文稿
-%  编译方式：xelatex deepfool.tex （需运行两次以生成目录/参考文献）
+%  对抗攻击与对抗训练 实验报告 —— Beamer 文稿
+%  主线：① 训练模型  ② DeepFool 攻击（核心）  ③ 对抗训练（防御）
+%  编译方式：xelatex at.tex （需运行两次以生成目录/导航）
 %
 %  本文件使用 fontspec + Noto CJK 字体，无需 ctex 宏包，通用性强。
 %  如果你的环境装了 ctex，也可以把下面前导区换成：
@@ -38,12 +38,15 @@
 \newcommand{\bx}{\boldsymbol{x}}
 \newcommand{\br}{\boldsymbol{r}}
 \newcommand{\bw}{\boldsymbol{w}}
+\newcommand{\bdelta}{\boldsymbol{\delta}}
+% 数据待补占位符
+\newcommand{\TBD}{\textcolor{red}{\rule{1.6em}{0.6em}}}
 
 % ---------- 标题信息 ----------
-\title[DeepFool 对抗攻击]{DeepFool：一种简洁而精确的对抗攻击方法}
-\subtitle{寻找最小扰动的几何视角}
-\author{汇报人}
-\institute{对抗攻击实验课程}
+\title[对抗攻击与对抗训练]{对抗攻击与对抗训练实验报告}
+\subtitle{以 DeepFool 为核心：模型训练 · 攻击 · 防御}
+\author[王军 \and 梁利国 \and 汤付伟]{王军 \quad 梁利国 \quad 汤付伟 \\[0.6em]
+  {\scriptsize\itshape\color{gray} Co-authored with Claude Opus 4.8}}
 \date{\today}
 
 % ---------- 每章前插入目录页 ----------
@@ -66,7 +69,7 @@
 \end{frame}
 
 % ================================================================
-\section{背景与动机}
+\section{背景与实验目标}
 % ================================================================
 
 \begin{frame}{什么是对抗样本？}
@@ -83,6 +86,122 @@
   \vspace{0.5em}
   \alert{研究意义：} 评估模型鲁棒性、理解决策边界、改进训练（对抗训练）。
 \end{frame}
+
+\begin{frame}{本次实验的三条主线}
+  \begin{columns}[T]
+    \begin{column}{0.33\textwidth}
+      \begin{block}{① 训练模型}
+        \footnotesize
+        在 CIFAR-10 上微调 ResNet-18，得到一个准确的\textbf{基线模型}，作为被攻击对象。
+      \end{block}
+    \end{column}
+    \begin{column}{0.33\textwidth}
+      \begin{block}{② DeepFool 攻击}
+        \footnotesize
+        \textbf{（核心）}用最小扰动把基线模型骗倒，并与 FGSM / APGD 对比。
+      \end{block}
+    \end{column}
+    \begin{column}{0.33\textwidth}
+      \begin{block}{③ 对抗训练}
+        \footnotesize
+        用 PGD 对抗训练得到\textbf{鲁棒模型}，诚实评估防御是否真有效。
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.8em}
+  \begin{center}
+  \begin{tikzpicture}[>=Stealth, node distance=8mm]
+    \node[draw,rounded corners,fill=blue!8,minimum height=7mm] (a) {训练基线模型};
+    \node[draw,rounded corners,fill=green!8,minimum height=7mm,right=14mm of a] (b) {DeepFool 攻击};
+    \node[draw,rounded corners,fill=orange!12,minimum height=7mm,right=14mm of b] (c) {对抗训练 + 评估};
+    \draw[->,thick] (a) -- (b);
+    \draw[->,thick] (b) -- (c);
+  \end{tikzpicture}
+  \end{center}
+  \footnotesize 攻击是“矛”，对抗训练是“盾”；先有准确的模型，才谈得上攻击与防御。
+\end{frame}
+
+% ================================================================
+\section{模型训练}
+% ================================================================
+
+\begin{frame}{数据集与预处理}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \textbf{CIFAR-10}：10 类自然图像，原生 $32\times32$。
+      \begin{itemize}
+        \item 训练 / 验证 / 测试 = \textbf{45000 / 5000 / 10000}
+        \item 数据增广：\texttt{RandomCrop(32, padding=4)} + \texttt{RandomHorizontalFlip}
+        \item 归一化：均值 $[0.485,0.456,0.406]$，标准差 $[0.229,0.224,0.225]$
+        \item 攻击阶段图像保持在 $[0,1]$ 像素空间，\textbf{归一化包进模型}内部
+              （避免攻击库的 \texttt{clamp(0,1)} 破坏对抗样本）。
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      \begin{block}{为什么把归一化放进模型}
+        \footnotesize
+        攻击需要在合法像素区间 $[0,1]$ 内裁剪。若先归一化再攻击，
+        \texttt{clamp(0,1)} 会把归一化后的负值截断、毁掉图像。
+        统一约定：\textbf{数据 $[0,1]$，归一化作为模型第一层}。
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{模型结构：CIFAR 版 ResNet-18}
+  直接用 ImageNet 版 ResNet-18 会把 $32\times32$ 一上来就压到 $8\times8$，
+  丢失太多空间信息。需做两处\textbf{适配小图}的改造：
+  \begin{itemize}
+    \item \texttt{conv1}：$7\times7$ stride 2 $\;\to\;$ \textbf{$3\times3$ stride 1, padding 1}
+    \item \texttt{maxpool}：$\;\to\;$ \textbf{Identity（去掉）}
+    \item \texttt{fc}：输出维度改为 \textbf{10 类}
+  \end{itemize}
+  \vspace{0.4em}
+  \begin{itemize}
+    \item 参数量 $\approx 11.2$\,M，从零开始训练（\texttt{weights=None}）。
+    \item 固定随机种子 \texttt{seed=42}，保证可复现。
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{训练配置与结果}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \textbf{训练配置}
+      \begin{itemize}
+        \item 损失：交叉熵
+        \item 优化器：\texttt{Adam}，lr $=10^{-3}$，weight decay $=10^{-4}$
+        \item 学习率调度：\texttt{StepLR}（每 5 轮 $\times 0.1$）
+        \item 早停：验证准确率连续 \textbf{5} 轮不提升即停
+        \item 最多 30 轮（早停自动截断）
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \textbf{结果}
+      \begin{table}
+      \centering\footnotesize
+      \begin{tabular}{lc}
+        \toprule
+        指标 & 数值 \\
+        \midrule
+        最佳验证准确率 & 88.96\% \\
+        测试 Top-1 准确率 & \alert{88.53\%} \\
+        测试 Top-3 准确率 & 98.14\% \\
+        \bottomrule
+      \end{tabular}
+      \end{table}
+      \vspace{0.4em}
+      \footnotesize 该模型作为后续所有攻击 / 防御实验的\textbf{基线（普通模型）}。
+    \end{column}
+  \end{columns}
+  \vspace{0.4em}
+  \begin{center}
+    \footnotesize\itshape （训练 Loss / Accuracy 曲线图：待插入）
+  \end{center}
+\end{frame}
+
+% ================================================================
+\section{DeepFool 攻击方法（核心）}
+% ================================================================
 
 \begin{frame}{对抗攻击的形式化定义}
   对于分类器 $f$ 与样本 $\bx$，记其预测标签
@@ -117,10 +236,6 @@
   \end{exampleblock}
 \end{frame}
 
-% ================================================================
-\section{核心思想（几何直觉）}
-% ================================================================
-
 \begin{frame}{几何直觉：决策边界就是“超平面”}
   \begin{itemize}
     \item 在样本附近，把分类器\textbf{局部线性化}，决策边界近似为一个个\textbf{超平面}。
@@ -151,10 +266,6 @@
   \end{center}
   \footnotesize 在所有相邻类别的边界中，DeepFool 选择\textbf{最近}的那条，做垂直投影。
 \end{frame}
-
-% ================================================================
-\section{数学推导}
-% ================================================================
 
 \begin{frame}{二分类：线性分类器（最简单情形）}
   设二分类器 $f(\bx)=\bw^\top\bx + b$，预测 $\hat k(\bx)=\sign\!\big(f(\bx)\big)$。
@@ -227,10 +338,6 @@
   \footnotesize 过冲系数 $1.02$ 让扰动“多推一点点”，避免样本卡在边界上、因数值/量化又被推回正确类。
 \end{frame}
 
-% ================================================================
-\section{算法与实现}
-% ================================================================
-
 \begin{frame}{算法伪代码（多分类 DeepFool）}
   \begin{block}{}
   \footnotesize
@@ -249,72 +356,25 @@
   \end{enumerate}
   \end{block}
   \footnotesize 复杂度主要来自每步对 $c$ 个类别求梯度；CIFAR-10（$c=10$）规模下很快。
-\end{frame}
-
-\begin{frame}{实现细节与注意事项}
-  \begin{itemize}
-    \item \textbf{过冲系数} $\eta=0.02$：保证越界，缓解“边界样本被量化推回”的问题。
-    \item \textbf{终止条件}：标签改变即停；另设最大迭代次数（如 50）防止极少数不收敛。
-    \item \textbf{范数选择}：默认 $L_2$；可推广到 $L_\infty$ 等 $L_p$ 范数（改投影方式）。
-    \item \textbf{无定向攻击}：只保证“分错成某个其他类”，不能指定目标类。
-    \item \textbf{数值实现}：把图像当作向量，逐步累加 $\br_i$，最后裁剪到合法像素区间 $[0,1]$。
-  \end{itemize}
-  \vspace{0.3em}
-  \begin{exampleblock}{常用工具}
-    可直接用 \texttt{torchattacks}、\texttt{Foolbox}、\texttt{ART} 等库调用 DeepFool，几行即可跑通。
-  \end{exampleblock}
+  本实验用 \texttt{torchattacks.DeepFool(steps=20, overshoot=0.02)}。
 \end{frame}
 
 % ================================================================
-\section{实验效果与对比}
+\section{攻击实验与结果}
 % ================================================================
 
-\begin{frame}{鲁棒性度量指标 $\hat\rho_{adv}$}
-  论文用\textbf{平均相对扰动}衡量模型的鲁棒性：
+\begin{frame}{鲁棒性度量与实验设置}
+  最小扰动攻击不看“成功率”，而看\textbf{平均/中位 $L_2$ 扰动}——越小越说明模型脆弱。
+  论文用\textbf{平均相对扰动}：
   \[
     \hat\rho_{adv}(f) = \frac{1}{|\mathcal{D}|}
       \sum_{\bx \in \mathcal{D}} \frac{\norm{\hat\br(\bx)}_2}{\norm{\bx}_2}.
   \]
   \begin{itemize}
-    \item 分子：DeepFool 找到的最小扰动范数；分母：原图范数（归一化）。
-    \item $\hat\rho_{adv}$ \textbf{越小}，说明只需更小扰动即可骗过模型 $\Rightarrow$ 模型越脆弱。
-    \item 它给出了一个\textbf{与攻击者超参无关}的、可比较的鲁棒性数值。
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{与 FGSM 的对比}
-  \begin{table}
-  \centering
-  \begin{tabular}{lcccc}
-    \toprule
-    方法 & 步数 & 扰动范数 & 骗过率 & 是否需调参 \\
-    \midrule
-    FGSM     & 单步       & 大           & 高   & 需手调 $\varepsilon$ \\
-    DeepFool & 迭代（2--4） & \alert{小（约 FGSM 的 $1/5$）} & 相当 & 无需 \\
-    \bottomrule
-  \end{tabular}
-  \end{table}
-  \vspace{0.6em}
-  \begin{block}{关键结论}
-    论文报告：DeepFool 扰动范数约为 FGSM 的 \textbf{1/5}（ImageNet 上约 1/10），骗过率相当。
-    \\[0.3em]
-    \alert{本项目实测（下一节）：} 在 ResNet-18/CIFAR-10 上，DeepFool 平均 $L_2$
-    仅为 FGSM 的约 \textbf{1/11}（$0.16$ vs $1.72$），骗过率几乎一致。
-  \end{block}
-\end{frame}
-
-\begin{frame}{本项目实验设置}
-  \begin{itemize}
-    \item \textbf{模型：} ResNet-18，在 CIFAR-10（$32\times32$ 原生分辨率）上微调。
-          干净测试准确率 \textbf{88.53\%}（Top-3 98.14\%）。
-    \item \textbf{攻击实现：} \texttt{torchattacks}，全部在 $[0,1]$ 像素空间进行，
-          归一化包进模型（避免 clamp 破坏对抗样本）。
-    \item \textbf{DeepFool 配置：} \texttt{steps=20}, \texttt{overshoot=0.02}，
-          取 200 个测试样本评估。
-    \item \textbf{对照攻击：} FGSM、APGD（均 $L_\infty$，$\varepsilon=8/255$），
-          统一画扰动分布 / 混淆矩阵 / t-SNE。
-    \item \textbf{口径：} 报告\textbf{条件攻击成功率}（只统计干净分对、被攻击翻掉的样本），
-          并配对给出 Clean / Robust Acc。
+    \item \textbf{被攻击模型：} 上一节训好的 ResNet-18（干净准确率 88.53\%）。
+    \item \textbf{攻击实现：} \texttt{torchattacks}，全部在 $[0,1]$ 像素空间，取 200 个测试样本。
+    \item \textbf{对照攻击：} FGSM、APGD（均 $L_\infty$，$\varepsilon=8/255$）。
+    \item \textbf{成功率口径：} \textbf{条件攻击成功率} = 干净分对、却被攻击翻掉的比例。
   \end{itemize}
 \end{frame}
 
@@ -375,10 +435,104 @@
 \end{frame}
 
 % ================================================================
+\section{对抗训练（防御）}
+% ================================================================
+
+\begin{frame}{对抗训练：把“最坏样本”喂给模型}
+  防御思路：训练时\textbf{先用 PGD 把每批干净图现场打成对抗样本}，再用它（标签仍为原始 $y$）训练，
+  逼模型“被攻击也分对”。形式化为\textbf{min-max（鞍点）问题}：
+  \[
+    \min_{\theta}\ \mathbb{E}_{(\bx,y)}\Big[\ \max_{\norm{\bdelta}_\infty \le \varepsilon}\ L\big(f_\theta(\bx+\bdelta),\,y\big)\Big].
+  \]
+  \begin{itemize}
+    \item \textbf{内层 $\max$：} 在预算 $\varepsilon$ 内找让损失最大的扰动（用 PGD 近似）。
+    \item \textbf{外层 $\min$：} 更新参数 $\theta$，让“最坏情况”的损失也变小 $\Rightarrow$ 变鲁棒。
+    \item 对抗样本\textbf{边训边生成}：模型每更新一次就变，需用当前模型重新打 PGD。
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{为什么用 PGD，而不是 DeepFool？}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{PGD（用于训练）}
+        \footnotesize
+        在\textbf{固定预算 $\varepsilon$ 内最大化损失} → 给“最坏情况”样本，
+        正好是内层 $\max L$ 要的。\\[0.3em]
+        \emph{像“在规则内全力打你”的陪练 → 越打越抗揍。}
+      \end{block}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{block}{DeepFool（不用于训练）}
+        \footnotesize
+        求\textbf{最小扰动、刚越界就停} → 样本“贴在边界上”、很弱，
+        且每个样本扰动大小不一、\textbf{没有统一预算}。\\[0.3em]
+        \emph{像“碰一下就收手”的陪练 → 练不出鲁棒性。}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.5em}
+  \begin{exampleblock}{结论}
+    \footnotesize
+    \textbf{PGD} 同时用于训练与评估；\textbf{DeepFool} 是\textbf{评估}工具
+    （测最小扰动大小、看到决策边界的距离）。
+  \end{exampleblock}
+\end{frame}
+
+\begin{frame}{PGD 对抗训练配方（本实验）}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \footnotesize
+      \begin{itemize}
+        \item 训练集：全量 50000，原生 $32\times32$ + 增广
+        \item 内层攻击：\textbf{PGD-7}，$L_\infty$，$\varepsilon = 8/255$
+        \item $\varepsilon$ 预热：前 5 轮从 $0.5\varepsilon$ 线性升到 $\varepsilon$
+        \item 损失：$(1-\lambda)\,\mathrm{CE}_{\text{clean}} + \lambda\,\mathrm{CE}_{\text{adv}}$，$\lambda=0.5$
+              （干净样本兜底\textbf{防塌缩}）
+        \item 优化器：\texttt{SGD}（lr $=0.1$, mom $=0.9$, wd $=5\times10^{-4}$）
+        \item 调度：\texttt{MultiStepLR} 在 40 / 60 轮 $\div 10$，共 \textbf{80} 轮
+        \item 梯度裁剪：上限 $1.0$
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      \begin{block}{防“假鲁棒”要点}
+        \footnotesize
+        \begin{itemize}
+          \item 干净/对抗损失\textbf{各半}，避免模型塌缩（Clean/Robust 双低）。
+          \item 评估用\textbf{强攻击}（APGD），并按强度阶梯 FGSM < PGD-20 < APGD 排查梯度混淆。
+          \item Clean 与 Robust Acc \textbf{配对报告}。
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{防御效果：普通模型 vs 鲁棒模型}
+  攻击强度阶梯：FGSM（弱）< PGD-20（标准基准）< APGD（最强）。同一模型 Robust Acc 应\textbf{依次递减}。
+  \begin{table}
+  \centering
+  \footnotesize
+  \begin{tabular}{lcccc}
+    \toprule
+     & Clean Acc & FGSM & PGD-20 & APGD \\
+    \midrule
+    普通模型 & 89.69\% & 1.88\% & \TBD & 0.00\% \\
+    鲁棒模型 & \TBD & \TBD & \TBD & \TBD \\
+    \bottomrule
+  \end{tabular}
+  \end{table}
+  \vspace{0.4em}
+  \footnotesize
+  \textbf{读表方法：} 对抗训练若真有效，鲁棒模型在三种攻击下的 Robust Acc 都应\textbf{明显高于}普通模型；
+  代价是 Clean Acc 通常会下降（鲁棒性—准确率权衡）。
+  \\[0.3em]
+  \textcolor{red}{\TBD\ 处为最终 80 轮训练结果，待训练完成后填入。}
+\end{frame}
+
+% ================================================================
 \section{讨论与总结}
 % ================================================================
 
-\begin{frame}{优点与局限}
+\begin{frame}{DeepFool 的优点与局限}
   \begin{columns}[T]
     \begin{column}{0.5\textwidth}
       \begin{block}{优点}
@@ -395,9 +549,9 @@
       \begin{block}{局限}
         \begin{itemize}
           \item 默认\textbf{无定向}（不能指定目标类）
-          \item 扰动卡在边界，\textbf{较“脆”}（易被量化/压缩抵消，靠过冲缓解）
+          \item 扰动卡在边界、\textbf{较“脆”}（易被量化/压缩抵消，靠过冲缓解）
           \item 纯攻击\textbf{强度}略逊于 C\&W
-          \item 不专门对抗\textbf{有防御}的模型
+          \item \textbf{不适合}用于对抗训练
         \end{itemize}
       \end{block}
     \end{column}
@@ -413,46 +567,34 @@
     方法 & 思路 & 特点 \\
     \midrule
     FGSM     & 沿梯度符号走一步     & 单步、$L_\infty$、扰动大 \\
-    PGD      & 在 $\varepsilon$ 球内迭代最大化损失 & 迭代、$L_\infty$、很强 \\
+    PGD      & 在 $\varepsilon$ 球内迭代最大化损失 & 迭代、$L_\infty$、训练/评估都用 \\
+    APGD     & 自适应步长 + 重启     & 强评估基线（AutoAttack 组件） \\
     \alert{DeepFool} & \alert{投影到最近决策边界} & \alert{迭代、最小扰动、快、几何} \\
     C\&W     & 优化最小 $L_2$ 扰动   & 最强、扰动极小、较慢 \\
     \bottomrule
   \end{tabular}
   \end{table}
-  \vspace{0.6em}
+  \vspace{0.5em}
   \begin{itemize}
-    \item DeepFool 与 C\&W 同属“\textbf{最小扰动}”路线，但 DeepFool 更快、更直观。
-    \item FGSM / PGD 属“\textbf{固定预算}”路线，关注在给定 $\varepsilon$ 内的破坏力。
+    \item DeepFool 与 C\&W 同属“\textbf{最小扰动}”路线（评估到边界的距离）。
+    \item FGSM / PGD / APGD 属“\textbf{固定预算}”路线（关注给定 $\varepsilon$ 内的破坏力）。
   \end{itemize}
-\end{frame}
-
-\begin{frame}{应用}
-  \begin{itemize}
-    \item \textbf{鲁棒性评估：} 用平均/中位 $L_2$（或 $\hat\rho_{adv}$）比较不同模型到决策边界的距离——这是 DeepFool 的主要用途。
-    \item \textbf{决策边界分析：} 扰动方向揭示了样本最易被推向哪个相邻类别（见混淆矩阵）。
-    \item \textbf{不适合用于对抗训练：} DeepFool 求\textbf{最小扰动、刚越界就停}，样本“贴在边界上”、很弱，
-          且每个样本扰动大小不一、\textbf{没有统一预算}。
-  \end{itemize}
-  \vspace{0.3em}
-  \begin{exampleblock}{本项目的做法}
-    \footnotesize
-    训练用 \textbf{PGD-AT}（固定 $\varepsilon$ 内最大化损失，给“最坏情况”样本），
-    DeepFool 只作\textbf{评估}。实测对抗训练后，鲁棒模型在 APGD 下 Robust Acc 从
-    $0\%$ 升到 $17\%$（代价是干净准确率降到 $72.8\%$）。
-  \end{exampleblock}
 \end{frame}
 
 \begin{frame}{总结}
-  \begin{block}{一句话}
-    DeepFool = “反复把样本沿垂直方向，推到\textbf{最近}的决策边界外，所需的\textbf{最小}扰动”。
-  \end{block}
-  \vspace{0.5em}
   \begin{enumerate}
-    \item \textbf{动机：} FGSM 扰动粗糙、需调参 $\Rightarrow$ 求最小扰动。
-    \item \textbf{核心：} 局部线性化，边界视为超平面，做正交投影。
-    \item \textbf{推导：} 二分类闭式解 $\to$ 迭代 $\to$ 多分类选最近边界。
-    \item \textbf{效果：} 扰动约为 FGSM 的 $1/5$，骗过率相当，迭代少、速度快。
+    \item \textbf{训练模型：} CIFAR 版 ResNet-18（conv1 改 $3\times3$、去 maxpool），
+          测试准确率 \textbf{88.53\%}，作为基线。
+    \item \textbf{DeepFool 攻击：} 局部线性化、投影到最近决策边界，求\textbf{最小 $L_2$ 扰动}；
+          实测平均 $L_2$ 仅 \textbf{0.16}，约 FGSM 的 $1/11$，骗过率却相当。
+    \item \textbf{对抗训练：} 用 PGD（非 DeepFool）做 min-max 训练得到鲁棒模型；
+          诚实评估需 Clean/Robust 配对 + 强攻击（APGD）。
   \end{enumerate}
+  \vspace{0.5em}
+  \begin{block}{一句话}
+    攻击（DeepFool）量出模型有多脆，防御（PGD 对抗训练）把它补强；
+    评估必须\textbf{诚实}，否则“假鲁棒”一戳就破。
+  \end{block}
 \end{frame}
 
 \begin{frame}{参考文献}
