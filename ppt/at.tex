@@ -118,7 +118,6 @@
     \draw[->,thick] (b) -- (c);
   \end{tikzpicture}
   \end{center}
-  \footnotesize 攻击是“矛”，对抗训练是“盾”；先有准确的模型，才谈得上攻击与防御。
 \end{frame}
 
 % ================================================================
@@ -151,16 +150,30 @@
 \begin{frame}{模型结构：CIFAR 版 ResNet-18}
   直接用 ImageNet 版 ResNet-18 会把 $32\times32$ 一上来就压到 $8\times8$，
   丢失太多空间信息。需做两处\textbf{适配小图}的改造：
-  \begin{itemize}
-    \item \texttt{conv1}：$7\times7$ stride 2 $\;\to\;$ \textbf{$3\times3$ stride 1, padding 1}
-    \item \texttt{maxpool}：$\;\to\;$ \textbf{Identity（去掉）}
-    \item \texttt{fc}：输出维度改为 \textbf{10 类}
-  \end{itemize}
-  \vspace{0.4em}
-  \begin{itemize}
-    \item 参数量 $\approx 11.2$\,M，从零开始训练（\texttt{weights=None}）。
-    \item 固定随机种子 \texttt{seed=42}，保证可复现。
-  \end{itemize}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \begin{itemize}
+        \item \texttt{conv1}：$7\times7$ stride 2 $\;\to\;$ \textbf{$3\times3$ stride 1, padding 1}
+        \item \texttt{maxpool}：$\;\to\;$ \textbf{Identity（去掉）}
+        \item \texttt{fc}：输出维度改为 \textbf{10 类}
+      \end{itemize}
+      \vspace{0.4em}
+      \begin{itemize}
+        \item 参数量 $\approx 11.2$\,M，从零开始训练。
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{为什么不用预训练 ResNet-18}
+        \footnotesize
+        \begin{itemize}
+          \item \textbf{stem 已被改掉}：预训练的 $7\times7$ \texttt{conv1} + \texttt{maxpool} 是为 $224\times224$ 大图设计的，
+                我们换成 $3\times3$、去掉 maxpool 后，\textbf{权重形状对不上}，stem 本就无法直接加载。
+          \item \textbf{特征不迁移}：ImageNet 的高分辨率纹理特征对 $32\times32$ 小图收益有限。
+          \item \textbf{干净基线}：从零训练得到\textbf{纯 CIFAR} 模型，避免迁移学习的混杂因素干扰后续\textbf{对抗鲁棒性}结论；4.5 万训练样本也足以从零训到约 $88\sim89\%$。
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 \begin{frame}{训练配置与结果}
@@ -190,8 +203,7 @@
       \end{tabular}
       \end{table}
       \vspace{0.4em}
-      \footnotesize 该模型作为后续所有攻击 / 防御实验的\textbf{基线（普通模型）}，
-      权重存于 \texttt{resnet18\_cifar10\_best.pth}。
+      \footnotesize 该模型作为后续所有攻击 / 防御实验的\textbf{基线（普通模型）}。
     \end{column}
   \end{columns}
 \end{frame}
@@ -396,7 +408,8 @@
   \]
   \begin{itemize}
     \item \textbf{被攻击模型：} 上一节训好的 ResNet-18（干净准确率 88.53\%）。
-    \item \textbf{攻击实现：} \texttt{torchattacks}，全部在 $[0,1]$ 像素空间，取 200 个测试样本。
+    \item \textbf{评测子集：} 取测试集前 2000 张；\textbf{指标}（Acc / 成功率 / 平均 $L_2$）在其中
+          \textbf{320 张}（batch 32 $\times$ 10）上统计，\textbf{可视化}（分布 / t-SNE / 混淆矩阵）用 200 张。
     \item \textbf{对照攻击：} FGSM、APGD（均 $L_\infty$，$\varepsilon=8/255$）。
     \item \textbf{成功率口径：} \textbf{条件攻击成功率} = 干净分对、却被攻击翻掉的比例。
   \end{itemize}
@@ -420,8 +433,25 @@
   \begin{itemize}
     \item DeepFool 的平均 $L_2$ 仅 \textbf{0.16}，约为 FGSM（1.72）的 \alert{$1/11$}、APGD（1.30）的 $1/8$。
     \item 三者骗过率都很高，但 DeepFool 用\textbf{小一个量级}的扰动达成同样效果。
-    \item 干净准确率均为 89.69\%（200 样本子集口径）。
+    \item 干净准确率均为 89.69\%（320 样本指标口径）。
   \end{itemize}
+\end{frame}
+
+\begin{frame}{对抗样本长什么样：人眼看不出，模型却分错}
+  \begin{center}
+    \IfFileExists{adv_example.pdf}{%
+      \includegraphics[height=0.60\textheight]{adv_example.pdf}%
+    }{%
+      \fbox{\parbox[c][0.52\textheight][c]{0.85\textwidth}{\centering
+        {\large\color{gray} 待插入：对抗样本三联图}\\[0.6em]
+        \footnotesize\color{gray}
+        原图（\checkmark\ 正确类）\quad$\big|$\quad 放大后的扰动\quad$\big|$\quad 对抗图（\texttimes\ 错误类）}}%
+    }
+  \end{center}
+  \footnotesize
+  以 \textbf{DeepFool} 为例：左为原图，模型正确分类；中间为\textbf{放大显示}的最小扰动
+  （真实幅度 $L_2 \approx 0.16$，肉眼几乎不可见）；右为叠加扰动后的对抗图，
+  模型以高置信度\textbf{改判为相邻类别}。直观印证：\alert{决策边界离正常样本非常近}。
 \end{frame}
 
 \begin{frame}{实测结果：扰动大小分布（FGSM vs DeepFool）}
@@ -473,6 +503,24 @@
     \item \textbf{外层 $\min$：} 更新参数 $\theta$，让“最坏情况”的损失也变小 $\Rightarrow$ 变鲁棒。
     \item 对抗样本\textbf{边训边生成}：模型每更新一次就变，需用当前模型重新打 PGD。
   \end{itemize}
+\end{frame}
+
+\begin{frame}{PGD：求解内层 $\max$ 的迭代攻击}
+  PGD（Projected Gradient Descent）= \textbf{多步 FGSM + 投影}，
+  用来近似内层 $\max$——在 $\varepsilon$ 预算内找让损失最大的“最坏扰动”：
+  \[
+    \bx^{t+1} = \Pi_{\mathcal{B}_\varepsilon(\bx)}\!\Big(\bx^{t} + \alpha\,\sign\!\big(\nabla_{\bx} L(\theta,\bx^{t},y)\big)\Big),
+    \qquad t = 0,1,\dots,K{-}1.
+  \]
+  \begin{itemize}
+    \item \textbf{随机起点：} $\bx^{0} = \bx + \mathrm{Uniform}(-\varepsilon,\varepsilon)$，避免每次从同一点出发、削弱梯度混淆。
+    \item \textbf{投影 $\Pi$：} 每步把结果裁回 $L_\infty$ 球（$\norm{\bx^{t}-\bx}_\infty \le \varepsilon$）并保持 $\bx^{t}\in[0,1]$。
+    \item \textbf{步长 $\alpha$、步数 $K$：} 训练用 \textbf{PGD-7}（$\alpha = 2.5\varepsilon/K \approx 0.36\varepsilon$）；
+          评估用更强的 \textbf{PGD-20}（$\alpha = 2/255$，随机重启）。
+  \end{itemize}
+  \vspace{0.2em}
+  \footnotesize 与 FGSM（单步直接顶到 $\pm\varepsilon$）相比，PGD 在预算内\textbf{反复爬升损失}，
+  得到的“最坏样本”更强，正是对抗训练内层 $\max$ 所需。
 \end{frame}
 
 \begin{frame}{为什么用 PGD，而不是 DeepFool？}
@@ -548,6 +596,8 @@
   \footnotesize
   \textbf{读表方法：} 对抗训练若真有效，鲁棒模型在三种攻击下的 Robust Acc 都应\textbf{明显高于}普通模型；
   代价是 Clean Acc 通常会下降（鲁棒性—准确率权衡）。
+  \\[0.3em]
+  注：本表均为\textbf{320 样本指标}口径，故普通模型 Clean Acc 记为 89.69\%（与全测试集 88.53\% 为同一模型，仅评测子集不同）。
   \\[0.3em]
   \textcolor{red}{\TBD\ 处为最终 80 轮训练结果，待训练完成后填入。}
 \end{frame}
