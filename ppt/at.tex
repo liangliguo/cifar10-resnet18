@@ -205,6 +205,24 @@
   验证准确率在第 17 轮达到峰值 \textbf{88.96\%}，此后连续 5 轮无提升触发早停（虚线处为最佳轮）。
 \end{frame}
 
+\begin{frame}{基线模型：干净测试集混淆矩阵}
+  \begin{columns}[c]
+    \begin{column}{0.6\textwidth}
+      \includegraphics[width=\linewidth]{confusion_clean.pdf}
+    \end{column}
+    \begin{column}{0.4\textwidth}
+      \footnotesize
+      行归一化（每行 = 该真实类别被预测到各类的比例）。
+      \begin{itemize}
+        \item 对角线普遍 \textbf{0.8--0.95}，整体准确率 \textbf{88.53\%}。
+        \item 最易混的是 \textbf{cat\,$\leftrightarrow$\,dog}（cat 仅 0.74，最低）。
+        \item \texttt{automobile}/\texttt{ship}/\texttt{truck} 最稳（$\ge 0.93$）。
+        \item 误分主要发生在\textbf{语义相近}的类别之间，符合直觉。
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 % ================================================================
 \section{DeepFool 攻击方法（核心）}
 % ================================================================
