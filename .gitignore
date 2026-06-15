@@ -13,3 +13,16 @@ data/
 # Run outputs (Kaggle downloads / exported figures)
 to/
 *.log
+
+# LaTeX build artifacts (keep .tex and .pdf)
+*.aux
+*.nav
+*.out
+*.snm
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.vrb
