@@ -408,8 +408,8 @@
   \]
   \begin{itemize}
     \item \textbf{被攻击模型：} 上一节训好的 ResNet-18（干净准确率 88.53\%）。
-    \item \textbf{评测子集：} 取测试集前 2000 张；\textbf{指标}（Acc / 成功率 / 平均 $L_2$）在其中
-          \textbf{320 张}（batch 32 $\times$ 10）上统计，\textbf{可视化}（分布 / t-SNE / 混淆矩阵）用 200 张。
+    \item \textbf{评测样本：} FGSM / APGD 的指标（Acc / 成功率 / $L_2$ / $\hat\rho_{adv}$）用\textbf{全量测试集 10000 张}；
+          DeepFool 迭代慢，用 \textbf{1000 张}；\textbf{可视化}（分布用 1000、t-SNE 用 200、混淆矩阵）口径见各图注。
     \item \textbf{对照攻击：} FGSM、APGD（均 $L_\infty$，$\varepsilon=8/255$）。
     \item \textbf{成功率口径：} \textbf{条件攻击成功率} = 干净分对、却被攻击翻掉的比例。
   \end{itemize}
@@ -419,21 +419,21 @@
   \begin{table}
   \centering
   \footnotesize
-  \begin{tabular}{lcccc}
+  \begin{tabular}{lccccc}
     \toprule
-    攻击 & 范数 / 预算 & 攻击成功率 & Robust Acc & 平均 $L_2$ \\
+    攻击 & 范数 / 预算 & 攻击成功率 & Robust Acc & 平均 $L_2$ & $\hat\rho_{adv}$ \\
     \midrule
-    FGSM     & $L_\infty,\ 8/255$ & 97.91\% & 1.88\% & 1.7208 \\
-    \alert{DeepFool} & \alert{$L_2$（最小扰动）} & \alert{97.21\%} & \alert{2.50\%} & \alert{\textbf{0.1604}} \\
-    APGD     & $L_\infty,\ 8/255$ & 100.00\% & 0.00\% & 1.3048 \\
+    FGSM     & $L_\infty,\ 8/255$ & 96.01\% & 3.57\% & 1.7233 & 0.0628 \\
+    \alert{DeepFool} & \alert{$L_2$（最小扰动）} & \alert{97.60\%} & \alert{2.15\%} & \alert{\textbf{0.1606}} & \alert{\textbf{0.0057}} \\
+    APGD     & $L_\infty,\ 8/255$ & 100.00\% & 0.00\% & 1.2876 & 0.0467 \\
     \bottomrule
   \end{tabular}
   \end{table}
   \vspace{0.5em}
   \begin{itemize}
-    \item DeepFool 的平均 $L_2$ 仅 \textbf{0.16}，约为 FGSM（1.72）的 \alert{$1/11$}、APGD（1.30）的 $1/8$。
+    \item DeepFool 的相对扰动 $\hat\rho_{adv}$ 仅 \textbf{0.0057}，约为 FGSM（0.063）的 \alert{$1/11$}、APGD（0.047）的 $1/8$；平均 $L_2$（0.16）同样小一个量级。
     \item 三者骗过率都很高，但 DeepFool 用\textbf{小一个量级}的扰动达成同样效果。
-    \item 干净准确率均为 89.69\%（320 样本指标口径）。
+    \item \textbf{样本量：} FGSM / APGD 为\textbf{全量 10000 张}，DeepFool 因迭代慢用 \textbf{1000 张}；干净准确率 FGSM/APGD 为 88.53\%、DeepFool 为 89.65\%（同一模型，子集不同）。
   \end{itemize}
 \end{frame}
 
@@ -449,9 +449,10 @@
     }
   \end{center}
   \footnotesize
-  以 \textbf{DeepFool} 为例：左为原图，模型正确分类；中间为\textbf{放大显示}的最小扰动
-  （真实幅度 $L_2 \approx 0.16$，肉眼几乎不可见）；右为叠加扰动后的对抗图，
-  模型以高置信度\textbf{改判为相邻类别}。直观印证：\alert{决策边界离正常样本非常近}。
+  以 \textbf{DeepFool} 为例（每行一个样例，取 2 例）：左为\textbf{原图}，模型正确分类；
+  中为叠加最小扰动后的\textbf{对抗图}，模型以高置信度\textbf{改判为相邻类别}；
+  右为\textbf{放大显示}的扰动（真实幅度 $L_2 \approx 0.16$，肉眼几乎不可见）。
+  直观印证：\alert{决策边界离正常样本非常近}。
 \end{frame}
 
 \begin{frame}{实测结果：扰动大小分布（FGSM vs DeepFool）}
@@ -479,13 +480,22 @@
   但 DeepFool 用的扰动小得多。
 \end{frame}
 
-\begin{frame}{实测结果：特征空间 t-SNE（Clean vs 对抗）}
+\begin{frame}{实测结果：特征空间 t-SNE（Clean vs FGSM）}
   \begin{center}
-    \includegraphics[height=0.66\textheight]{tsne_clean_vs_adv.pdf}
+    \includegraphics[width=0.46\linewidth]{tsne_clean_vs_adv_Clean.pdf}\hfill
+    \includegraphics[width=0.46\linewidth]{tsne_clean_vs_adv_FGSM.pdf}
   \end{center}
-  \footnotesize
-  共享嵌入下，干净样本按类别聚成清晰簇；对抗样本（FGSM/DeepFool/APGD）则被打散、
-  跨越到其他类别的区域，直观展示决策被改写。
+  {\footnotesize 四张 t-SNE 共享同一嵌入（坐标可比）。左：Clean 按 10 个真实类别聚成清晰簇；
+  右：FGSM（$L_\infty$）把样本明显打散、推向其他类别区域，直观展示决策被改写。}
+\end{frame}
+
+\begin{frame}{实测结果：特征空间 t-SNE（DeepFool vs APGD）}
+  \begin{center}
+    \includegraphics[width=0.46\linewidth]{tsne_clean_vs_adv_DeepFool.pdf}\hfill
+    \includegraphics[width=0.46\linewidth]{tsne_clean_vs_adv_APGD.pdf}
+  \end{center}
+  {\footnotesize 与上页同一嵌入。DeepFool（最小 $L_2$ 扰动）与 APGD（最强 $L_\infty$）同样把类别簇打乱，
+  印证决策被改写；区别在于 DeepFool 用的扰动小一个量级（见前页 $L_2$/$\hat\rho_{adv}$ 对比）。}
 \end{frame}
 
 % ================================================================
@@ -578,6 +588,15 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{对抗训练曲线（Loss / Clean Acc / Adv Acc）}
+  \begin{center}
+    \includegraphics[height=0.66\textheight]{pgd_at_training_curves.pdf}
+  \end{center}
+  \footnotesize
+  共 80 轮，\texttt{MultiStepLR} 在第 40 / 60 轮 $\div 10$：每次衰减后 Clean 与 Adv Acc 都明显跃升，
+  最终 Clean $\approx 99.5\%$、Adv（PGD-7 训练态）$\approx 61.8\%$，loss 平稳下降无震荡，训练收敛健康。
+\end{frame}
+
 \begin{frame}{防御效果：普通模型 vs 鲁棒模型}
   攻击强度阶梯：FGSM（弱）< PGD-20（标准基准）< APGD（最强）。同一模型 Robust Acc 应\textbf{依次递减}。
   \begin{table}
@@ -587,19 +606,47 @@
     \toprule
      & Clean Acc & FGSM & PGD-20 & APGD \\
     \midrule
-    普通模型 & 89.69\% & 1.88\% & \TBD & 0.00\% \\
-    鲁棒模型 & \TBD & \TBD & \TBD & \TBD \\
+    普通模型 & 88.53\% & 3.57\% & 0.00\% & 0.00\% \\
+    鲁棒模型 & 86.25\% & 55.62\% & 45.82\% & 45.30\% \\
     \bottomrule
   \end{tabular}
   \end{table}
   \vspace{0.4em}
   \footnotesize
   \textbf{读表方法：} 对抗训练若真有效，鲁棒模型在三种攻击下的 Robust Acc 都应\textbf{明显高于}普通模型；
-  代价是 Clean Acc 通常会下降（鲁棒性—准确率权衡）。
+  代价是 Clean Acc 会下降（鲁棒性—准确率权衡）。\textbf{本实验中鲁棒模型 Clean 降 2.3 个点（88.53\%→86.25\%），换来三种攻击下 Robust Acc 由近 0 升到 45--56\%，未见塌缩；}且同一模型沿 FGSM > PGD-20 > APGD 依次递减，无梯度混淆迹象。
   \\[0.3em]
-  注：本表均为\textbf{320 样本指标}口径，故普通模型 Clean Acc 记为 89.69\%（与全测试集 88.53\% 为同一模型，仅评测子集不同）。
-  \\[0.3em]
-  \textcolor{red}{\TBD\ 处为最终 80 轮训练结果，待训练完成后填入。}
+  注：本表为\textbf{全量测试集 10000 张}评估（FGSM/PGD-20/APGD 均 $L_\infty,\ \varepsilon=8/255$），是鲁棒性评估的金标准；普通模型 Clean Acc 88.53\% 即全测试集准确率。
+\end{frame}
+
+\begin{frame}{防御效果：普通模型 vs 鲁棒模型（图示）}
+  \begin{center}
+    \includegraphics[height=0.66\textheight]{robustness_comparison.pdf}
+  \end{center}
+  \footnotesize
+  对抗训练后，鲁棒模型在 FGSM / PGD-20 / APGD 三种攻击下的 Robust Acc 由近 0 升至 \textbf{45--56\%}（全量 10000 张评估），
+  代价是 Clean Acc 下降约 2.3 个点（88.53\%\,$\to$\,86.25\%）；三种攻击下 Robust Acc 沿强度阶梯依次递减，无梯度混淆迹象。
+\end{frame}
+
+\begin{frame}{防御效果：DeepFool 最小扰动（边界距离视角）}
+  \begin{columns}[c]
+    \begin{column}{0.58\textwidth}
+      \includegraphics[width=\linewidth]{deepfool_rho_base_vs_robust.pdf}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \footnotesize
+      DeepFool 求\textbf{最小扰动}，其大小 = 样本到决策边界的距离，越大越鲁棒。
+      \begin{itemize}
+        \item 普通模型：$\hat\rho_{adv}\approx\textbf{0.006}$（$L_2\approx0.18$）。
+        \item 鲁棒模型：$\hat\rho_{adv}\approx\textbf{0.043}$（$L_2\approx1.22$）。
+        \item 骗倒鲁棒模型需要 \alert{$\sim$7 倍}大的扰动。
+      \end{itemize}
+      \vspace{0.3em}
+      与固定预算口径（前页 Robust Acc）互补：从\textbf{边界距离}角度同样证明对抗训练有效。
+      \\[0.3em]
+      \scriptsize（1000 张，仅统计干净分对且被翻掉的样本；普通模型 $L_2$ 0.18 略大于前页攻击表的 0.16，因后者按 evaluate 口径连未翻掉样本一并平均。）
+    \end{column}
+  \end{columns}
 \end{frame}
 
 % ================================================================

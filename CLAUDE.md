@@ -20,11 +20,25 @@ GPU: the project defaults to **CPU-only** PyTorch wheels. For an NVIDIA GPU, edi
 `[tool.uv.sources]` in `pyproject.toml` to point `torch`/`torchvision` at the
 `torch-cu128` index, then re-run `uv sync`. There is no test suite or linter.
 
-Compile the report (XeLaTeX, needs Noto CJK fonts; run twice for TOC/nav):
+Compile the report (`ppt/at.tex`). It needs Noto CJK fonts (`Noto Serif/Sans CJK SC`).
 
-```bash
-cd ppt && xelatex at.tex && xelatex at.tex
-```
+- **macOS (this dev box): use Tectonic** — there is no TeXLive/`xelatex` installed here.
+  Tectonic bundles XeTeX, auto-runs multiple passes (no need to run twice), and picks up the
+  Noto CJK fonts from `~/Library/Fonts`:
+
+  ```bash
+  cd ppt && tectonic at.tex          # → ppt/at.pdf
+  ```
+
+  Harmless warnings on this box: `nullfont` missing-digit (beamer footer), `m/it undefined`
+  (CJK has no real italic, falls back to upright), and `absolute path .../NotoSerifCJKsc`
+  (uses system fonts, not reproducible elsewhere). Check page count with `pdfinfo at.pdf`.
+
+- **Elsewhere (TeXLive installed): XeLaTeX**, run twice for TOC/nav:
+
+  ```bash
+  cd ppt && xelatex at.tex && xelatex at.tex
+  ```
 
 ## Notebook architecture (`resnet-18-apgd.ipynb`)
 
@@ -69,8 +83,5 @@ The notebook is written to run on Kaggle (multi-GPU via `DataParallel`, paths un
 
 - `*.pth` checkpoints and `to/` (Kaggle run outputs: figures, logs) are gitignored.
   `to/dest/resnet18_cifar10_best.pth` is the trained base model used by the scripts.
-- `对抗鲁棒性-问题与知识点.md` — the design rationale (why conditional ASR, why 8/255,
-  why PGD-AT over DeepFool, gradient-masking pitfalls). Read it before changing
-  evaluation or defense logic.
 - `ppt/at.tex` is the report; figure PDFs in `ppt/` are committed deliverables, but
   LaTeX build artifacts (`.aux`, `.toc`, `.synctex.gz`, …) are gitignored.

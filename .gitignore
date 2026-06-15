@@ -26,3 +26,6 @@ to/
 *.bbl
 *.blg
 *.vrb
+
+# macOS
+.DS_Store
