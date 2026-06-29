@@ -582,31 +582,32 @@
   生成的高损失对抗样本攻击强度更高，符合对抗训练内层 $\max$ 的目标。
 \end{frame}
 
-\begin{frame}{为什么用 PGD，而不是 DeepFool？}
-  \begin{columns}[T]
-    \begin{column}{0.5\textwidth}
-      \begin{block}{PGD（用于训练）}
-        \footnotesize
-        在\textbf{固定预算 $\varepsilon$ 内最大化损失} → 提供“最坏情况”样本，
-        与内层 $\max L$ 的优化目标一致。\\[0.3em]
-        \emph{因此适合用于提升固定扰动预算下的鲁棒性。}
-      \end{block}
-    \end{column}
-    \begin{column}{0.5\textwidth}
-      \begin{block}{DeepFool（不用于训练）}
-        \footnotesize
-        求\textbf{最小扰动、达到类别改变即停止} → 样本通常位于边界附近，攻击强度有限，
-        且每个样本扰动大小不一、\textbf{没有统一预算}。\\[0.3em]
-        \emph{因此不适合作为固定预算对抗训练的内层攻击。}
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vspace{0.5em}
-  \begin{exampleblock}{结论}
+\begin{frame}{内层攻击选择：PGD 与 DeepFool 的定位}
+  \small
+  对抗训练需要在统一扰动预算内构造高损失样本；DeepFool 更适合度量样本到决策边界的距离。
+  \vspace{0.4em}
+
+  \begin{block}{PGD：固定预算下的最坏样本}
     \footnotesize
-    \textbf{PGD} 同时用于训练与评估；\textbf{DeepFool} 是\textbf{评估}工具
-    （用于测量最小扰动大小，并估计样本到决策边界的距离）。
-  \end{exampleblock}
+    \begin{itemize}
+      \item 目标：近似
+            $\max_{\norm{\bdelta}_\infty \le \varepsilon}
+            L(f_\theta(\bx+\bdelta),y)$，与对抗训练内层 $\max$ 一致
+      \item 约束：所有样本共享同一 $\varepsilon$ 预算
+      \item 用途：生成高损失训练样本，提升固定预算鲁棒性
+    \end{itemize}
+  \end{block}
+
+  \vspace{0.35em}
+
+  \begin{block}{DeepFool：最小扰动与边界距离}
+    \footnotesize
+    \begin{itemize}
+      \item 目标：寻找改变类别所需的最小 $L_2$ 扰动
+      \item 停止：越过当前决策边界即停止，不设统一 $\varepsilon$ 预算
+      \item 用途：评估最小扰动大小，刻画样本到决策边界的距离
+    \end{itemize}
+  \end{block}
 \end{frame}
 
 \begin{frame}{PGD 对抗训练实验设置}
@@ -647,7 +648,7 @@
 \end{frame}
 
 \begin{frame}{防御效果：普通模型 vs 鲁棒模型}
-  攻击强度阶梯：FGSM（较低强度）< PGD-20（标准基准）< APGD（高强度）。同一模型 Robust Acc 应\textbf{依次递减}；DeepFool 为\textbf{无 $\varepsilon$ 预算}的最小扰动攻击，单列作对照。
+  攻击阶梯：FGSM、PGD-20、APGD。DeepFool 为\textbf{无 $\varepsilon$ 预算}的最小扰动攻击，单列作对照。
   \begin{table}
   \centering
   \footnotesize
@@ -662,14 +663,14 @@
   \end{table}
   \vspace{0.3em}
   \footnotesize
-  \textbf{结果解读：} 对抗训练有效时，鲁棒模型在三种\textbf{固定 $\varepsilon$} 攻击下 Robust Acc 应明显更高，代价是 Clean 略降。本实验 Clean 降 2.3 点（88.53\%→86.25\%），换来 Robust Acc 由接近 0 升至 \textbf{45--56\%}，未出现明显性能退化；且沿 FGSM > PGD-20 > APGD 依次递减，未观察到梯度混淆。
+  \textbf{结果解读：} 对抗训练有效时，鲁棒模型在三种\textbf{固定 $\varepsilon$} 攻击下 Robust Acc 应明显更高，代价是 Clean 略降。本实验 Clean 降 2.3 点（88.53\%→86.25\%），换来 Robust Acc 由接近 0 升至 \textbf{45--56\%}，未出现明显性能退化；
   \\[0.2em]
   \alert{DeepFool Robust Acc 均接近 0（普通 2.2\%，鲁棒 0.9\%）：}该攻击无 $\varepsilon$ 预算，通常迭代至越过决策边界才停止；其防御信号主要体现在\textbf{所需扰动大小}（$\hat\rho_{\mathrm{adv}}$），而非 Robust Acc。
   \\[0.2em]
   {\scriptsize 注：FGSM/PGD-20/APGD 使用完整测试集 \textbf{10000 张}（$L_\infty,\varepsilon=8/255$）；DeepFool（$L_2$ 最小扰动）使用 \textbf{1000 张}。}
 \end{frame}
 
-\begin{frame}{防御效果：普通模型 vs 鲁棒模型（图示）}
+\begin{frame}{防御效果：普通模型 vs 鲁棒模型}
   \begin{center}
     \includegraphics[height=0.6\textheight]{robustness_comparison.pdf}
   \end{center}
@@ -694,7 +695,6 @@
       \vspace{0.3em}
       与固定预算评估范式（Robust Acc）互补：从\textbf{边界距离}角度同样证明对抗训练有效。
       \\[0.3em]
-      \scriptsize（1000 张，仅统计干净样本上分类正确且经攻击后变为误分类的样本；普通模型 $L_2$ 0.18 略大于攻击对比表中的 0.16，原因是后者在 evaluate 统计方式下同时纳入未攻击成功样本。）
     \end{column}
   \end{columns}
 \end{frame}
@@ -704,29 +704,27 @@
 % ================================================================
 
 \begin{frame}{DeepFool 的优点与局限}
-  \begin{columns}[T]
-    \begin{column}{0.5\textwidth}
-      \begin{block}{优点}
-        \begin{itemize}
-          \item 扰动\textbf{最小}、几乎不可见
-          \item \textbf{无需人工调节}关键超参数
-          \item 迭代次数少、\textbf{计算效率较高}
-          \item 几何直觉清晰、\textbf{便于解释}
-          \item 提供可比的鲁棒性度量
-        \end{itemize}
-      \end{block}
-    \end{column}
-    \begin{column}{0.5\textwidth}
-      \begin{block}{局限}
-        \begin{itemize}
-          \item 默认\textbf{无定向}（不能指定目标类）
-          \item 扰动位于边界附近、\textbf{对预处理敏感}（易被量化/压缩抵消，靠过冲缓解）
-          \item 纯攻击\textbf{强度}略逊于 C\&W
-          \item \textbf{不适合}用于对抗训练
-        \end{itemize}
-      \end{block}
-    \end{column}
-  \end{columns}
+  \footnotesize
+  DeepFool 可视为度量模型安全边界的“精准尺子”：用局部线性近似寻找跨越决策边界的最小扰动。
+  \vspace{0.25em}
+
+  \begin{block}{优点}
+    \begin{itemize}
+      \item \textbf{计算高效：} 每步把非线性边界局部近似为超平面，用正交投影替代复杂优化。
+      \item \textbf{扰动极小：} 直接逼近改变分类所需的最小 $L_2$ 扰动，通常比 FGSM 更隐蔽。
+      \item \textbf{适合鲁棒性评估：} 平均 $L_2$ / $\hat\rho_{\mathrm{adv}}$ 可作为边界距离指标；超参数较少。
+    \end{itemize}
+  \end{block}
+
+  \vspace{0.35em}
+
+  \begin{block}{局限}
+    \begin{itemize}
+      \item \textbf{依赖白盒梯度：} 需要模型结构与精确梯度，黑盒或梯度遮蔽场景下效果受限。
+      \item \textbf{主要是非目标攻击：} 目标是越过最近错误边界，不能直接指定目标类别。
+      \item \textbf{实际扰动易失真：} 微小连续扰动对量化、压缩、随机化等预处理敏感，更偏向分析工具。
+    \end{itemize}
+  \end{block}
 \end{frame}
 
 \begin{frame}{不同攻击方法的对比}
@@ -758,7 +756,7 @@
           测试准确率 \textbf{88.53\%}，作为基线。
     \item \textbf{DeepFool 攻击：} 局部线性化、投影到最近决策边界，求\textbf{最小 $L_2$ 扰动}；
           实测平均 $L_2$ 仅 \textbf{0.16}，约 FGSM 的 $1/11$，攻击成功率相近。
-    \item \textbf{对抗训练：} 用 PGD（非 DeepFool）做 min-max 训练得到鲁棒模型；
+    \item \textbf{对抗训练：} 用 PGD做 min-max 训练得到鲁棒模型；
           可靠评估需同时报告 Clean/Robust 指标，并采用高强度攻击（APGD）。
   \end{enumerate}
   \vspace{0.5em}
@@ -769,10 +767,14 @@
 \end{frame}
 
 \begin{frame}[plain]
-  \begin{center}
-    {\Huge 谢谢！}\\[1em]
-    {\large 欢迎提问与讨论}
-  \end{center}
+  \centering
+  \vspace*{0.7cm}
+  \includegraphics[height=1.9cm]{logo_ynu.pdf}\\[0.8cm]
+  {\Huge\bfseries\color{ynublue}谢谢}\\[0.35em]
+  {\large 欢迎提问与讨论}\\[0.7em]
+  {\color{ynublue}\rule{0.46\textwidth}{0.9pt}}
+  \vfill
+  {\scriptsize\color{gray} 对抗攻击与对抗训练实验报告 \quad · \quad CIFAR-10 / ResNet-18}
 \end{frame}
 
 \end{document}
