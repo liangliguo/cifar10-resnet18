@@ -639,34 +639,35 @@
 \end{frame}
 
 \begin{frame}{防御效果：普通模型 vs 鲁棒模型}
-  攻击强度阶梯：FGSM（弱）< PGD-20（标准基准）< APGD（高强度）。同一模型 Robust Acc 应\textbf{依次递减}。
+  攻击强度阶梯：FGSM（弱）< PGD-20（标准基准）< APGD（高强度）。同一模型 Robust Acc 应\textbf{依次递减}；DeepFool 为\textbf{无 $\varepsilon$ 预算}的最小扰动攻击，单列作对照。
   \begin{table}
   \centering
   \footnotesize
-  \begin{tabular}{lcccc}
+  \begin{tabular}{lccccc}
     \toprule
-     & Clean Acc & FGSM & PGD-20 & APGD \\
+     & Clean Acc & FGSM & PGD-20 & APGD & \alert{DeepFool} \\
     \midrule
-    普通模型 & 88.53\% & 3.57\% & 0.00\% & 0.00\% \\
-    鲁棒模型 & 86.25\% & 55.62\% & 45.82\% & 45.30\% \\
+    普通模型 & 88.53\% & 3.57\% & 0.00\% & 0.00\% & \alert{2.2\%} \\
+    鲁棒模型 & 86.25\% & 55.62\% & 45.82\% & 45.30\% & \alert{0.9\%} \\
     \bottomrule
   \end{tabular}
   \end{table}
-  \vspace{0.4em}
+  \vspace{0.3em}
   \footnotesize
-  \textbf{结果解读：} 对抗训练若有效，鲁棒模型在三种攻击下的 Robust Acc 都应\textbf{明显高于}普通模型；
-  代价是 Clean Acc 会下降（鲁棒性—准确率权衡）。\textbf{本实验中鲁棒模型 Clean 下降 2.3 个百分点（88.53\%→86.25\%），同时三种攻击下 Robust Acc 由近 0 提升至 45--56\%，未见塌缩；}且同一模型沿 FGSM > PGD-20 > APGD 依次递减，无梯度混淆迹象。
-  \\[0.3em]
-  注：本表为\textbf{全量测试集 10000 张}评估（FGSM/PGD-20/APGD 均 $L_\infty,\ \varepsilon=8/255$），是鲁棒性评估的主要基准；普通模型 Clean Acc 88.53\% 即全测试集准确率。
+  \textbf{结果解读：} 对抗训练有效时，鲁棒模型在三种\textbf{固定 $\varepsilon$} 攻击下 Robust Acc 应明显更高，代价是 Clean 略降。本实验 Clean 降 2.3 点（88.53\%→86.25\%），换来 Robust Acc 由近 0 升到 \textbf{45--56\%}，未见塌缩；且沿 FGSM > PGD-20 > APGD 依次递减，无梯度混淆。
+  \\[0.2em]
+  \alert{DeepFool 两模型都≈0（鲁棒 0.9\% 略低于普通 2.2\%）：}无 $\varepsilon$ 预算、迭代到刚越界即停，几乎必然成功，差异为噪声——其防御信号不看 Robust Acc，而看\textbf{所需扰动大小}（下页 $\hat\rho_{adv}$）。
+  \\[0.2em]
+  {\scriptsize 注：FGSM/PGD-20/APGD 全量 \textbf{10000 张}（$L_\infty,\varepsilon=8/255$）；DeepFool（$L_2$ 最小扰动）用 \textbf{1000 张}。}
 \end{frame}
 
 \begin{frame}{防御效果：普通模型 vs 鲁棒模型（图示）}
   \begin{center}
-    \includegraphics[height=0.66\textheight]{robustness_comparison.pdf}
+    \includegraphics[height=0.6\textheight]{robustness_comparison.pdf}
   \end{center}
   \footnotesize
-  对抗训练后，鲁棒模型在 FGSM / PGD-20 / APGD 三种攻击下的 Robust Acc 由近 0 升至 \textbf{45--56\%}（全量 10000 张评估），
-  代价是 Clean Acc 下降约 2.3 个点（88.53\%\,$\to$\,86.25\%）；三种攻击下 Robust Acc 沿强度阶梯依次递减，无梯度混淆迹象。
+  对抗训练后，鲁棒模型在 FGSM / PGD-20 / APGD 三种\textbf{固定 $\varepsilon$} 攻击下 Robust Acc 由近 0 升至 \textbf{45--56\%}（全量 10000 张），代价是 Clean 降约 2.3 点（88.53\%\,$\to$\,86.25\%），且沿强度阶梯依次递减，无梯度混淆。
+  最右 \textbf{DeepFool}（无 $\varepsilon$ 预算）两模型都≈0，仅作对照——其防御效果改看\textbf{所需扰动大小}（下页 $\hat\rho_{adv}$）。
 \end{frame}
 
 \begin{frame}{防御效果：DeepFool 最小扰动（边界距离视角）}
