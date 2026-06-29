@@ -77,8 +77,8 @@
 % ---------- 标题信息 ----------
 \title[对抗攻击与对抗训练]{对抗攻击与对抗训练实验报告}
 \subtitle{基于 CIFAR-10 图像分类的对抗攻击与防御研究}
-\author[王军 \and 梁利国 \and 汤付伟]{王军 \quad 梁利国 \quad 汤付伟 \\[0.6em]
-  {\scriptsize\itshape\color{gray} Co-authored with Claude Opus 4.8}}
+\author[王军、梁利国、汤付伟]{\texorpdfstring{王军 \quad 梁利国 \quad 汤付伟 \\[0.6em]
+  {\scriptsize\itshape\color{gray} Co-authored with Claude Opus 4.8}}{王军、梁利国、汤付伟}}
 \date{\today}
 
 % ---------- 每章前插入目录页 ----------
@@ -287,7 +287,9 @@
   寻找“最小”对抗扰动可写成优化问题：
   \[
     \Delta(\bx;f) \;:=\; \min_{\br}\; \norm{\br}_2
-    \quad \text{s.t.}\quad \hat k(\bx+\br) \neq \hat k(\bx).
+    \quad \text{s.t.}\quad
+    \hat k(\bx+\br) \neq \hat k(\bx),\quad
+    \bx+\br \in [0,1]^d .
   \]
   \begin{itemize}
     \item $\Delta(\bx;f)$ 度量了样本 $\bx$ 到\textbf{决策边界}的距离。
@@ -322,23 +324,32 @@
   \vspace{0.1em}
   \centering
   \begin{tikzpicture}[>=Stealth, scale=0.82]
-    % 最近边界（较陡的线，离 x 近）
-    \draw[thick,gray] (1.7,-1.6) -- (2.1,1.8);
-    % 较远边界（较平的线，离 x 远）
-    \draw[thick,gray] (-1.8,2.7) -- (3.8,3.1);
+    \coordinate (x) at (0,0);
+    \coordinate (nearfoot) at (1.55,0);
+    \coordinate (farfoot) at (0,2.45);
+
+    % 两个局部线性化后的候选决策边界
+    \draw[thick,gray] (1.55,-1.55) -- (1.55,1.65);
+    \draw[thick,gray] (-1.8,2.45) -- (3.75,2.45);
+
     % 样本点 x
-    \fill (0,0) circle (2.5pt);
-    \node[below left] at (0,0) {$\bx$};
-    % 选中的最小扰动：指向最近边界
-    \draw[->,very thick,orange!85!red] (0,0) -- (1.97,0.03)
-      node[midway,above] {\small $\br_*$（最小）};
-    % 被舍弃的更远方向
-    \draw[->,thick,gray,dashed] (0,0) -- (0,2.92)
-      node[midway,right] {\small 更远 → 舍弃};
+    \fill (x) circle (2.5pt);
+    \node[below left] at (x) {$\bx$};
+
+    % 选中的最小扰动：垂直投影到最近边界
+    \draw[->,very thick,orange!85!red] (x) -- (nearfoot)
+      node[midway,below] {\small $\br_*$（最小）};
+    \draw[orange!85!red,thin] (1.40,0) -- (1.40,0.15) -- (1.55,0.15);
+
+    % 被舍弃的更远边界
+    \draw[->,thick,gray,dashed] (x) -- (farfoot)
+      node[midway,left] {\small 更远 → 舍弃};
+    \draw[gray,thin] (0,2.30) -- (0.15,2.30) -- (0.15,2.45);
+
     % 区域标注
-    \node at (-1.25,-1.1) {\small class A（当前）};
-    \node at (3.0,-0.7) {\small class B};
-    \node at (-1.1,3.4) {\small class C};
+    \node at (-1.05,-1.05) {\small class A（当前）};
+    \node at (2.75,-0.65) {\small class B};
+    \node at (-1.15,3.05) {\small class C};
   \end{tikzpicture}
   \par\vspace{0.1em}
   \scriptsize 在所有相邻类别的边界中，DeepFool 选择\textbf{最近}的边界，并进行垂直投影。
@@ -400,9 +411,7 @@
 \begin{frame}{多分类：最小扰动公式}
   朝最近边界 $\hat l$ 做正交投影，得到本步扰动：
   \[
-    \boxed{\;
-      \br_i = \frac{|f'_{\hat l}|}{\norm{\bw'_{\hat l}}_2^{2}}\,\bw'_{\hat l}
-    \;}
+    \br_i = \frac{|f'_{\hat l}|}{\norm{\bw'_{\hat l}}_2^{2}}\,\bw'_{\hat l}
   \]
   随后更新 $\bx_{i+1} = \bx_i + \br_i$，重复该过程直到类别改变。
   \vspace{0.6em}
@@ -442,27 +451,27 @@
 
 \begin{frame}{鲁棒性度量与实验设置}
   最小扰动攻击的核心指标不是“成功率”，而是\textbf{平均/中位 $L_2$ 扰动}——数值越小，表示模型鲁棒性越低。
-  论文用\textbf{平均相对扰动}：
+  本实验采用\textbf{平均相对扰动}：
   \[
-    \hat\rho_{adv}(f) = \frac{1}{|\mathcal{D}|}
+    \hat\rho_{\mathrm{adv}}(f) = \frac{1}{|\mathcal{D}|}
       \sum_{\bx \in \mathcal{D}} \frac{\norm{\hat\br(\bx)}_2}{\norm{\bx}_2}.
   \]
   \begin{itemize}
     \item \textbf{被攻击模型：} 上一节训练得到的 ResNet-18（干净准确率 88.53\%）。
-    \item \textbf{评测样本：} FGSM / APGD 的指标（Acc / 成功率 / $L_2$ / $\hat\rho_{adv}$）用\textbf{全量测试集 10000 张}；
-          DeepFool 计算成本较高，用 \textbf{1000 张}；\textbf{可视化}（分布用 1000、t-SNE 用 200、混淆矩阵）口径见各图注。
+    \item \textbf{评测样本：} FGSM / APGD 的指标（Acc / 成功率 / $L_2$ / $\hat\rho_{\mathrm{adv}}$）基于\textbf{完整测试集 10000 张}；
+          DeepFool 计算成本较高，采用 \textbf{1000 张}；\textbf{可视化结果}的采样设置（分布用 1000、t-SNE 用 200、混淆矩阵）见各图注。
     \item \textbf{对照攻击：} FGSM、APGD（均 $L_\infty$，$\varepsilon=8/255$）。
-    \item \textbf{成功率口径：} \textbf{条件攻击成功率} = 干净样本上分类正确、经攻击后变为误分类的比例。
+    \item \textbf{成功率定义：} \textbf{条件攻击成功率} = 干净样本上分类正确、经攻击后变为误分类的比例。
   \end{itemize}
 \end{frame}
 
-\begin{frame}{实测结果：三种攻击对比（普通模型，白盒）}
+\begin{frame}{实测结果：三种攻击对比（普通模型，白盒攻击）}
   \begin{table}
   \centering
   \footnotesize
   \begin{tabular}{lccccc}
     \toprule
-    攻击 & 范数 / 预算 & 攻击成功率 & Robust Acc & 平均 $L_2$ & $\hat\rho_{adv}$ \\
+    攻击 & 范数 / 预算 & 攻击成功率 & Robust Acc & 平均 $L_2$ & $\hat\rho_{\mathrm{adv}}$ \\
     \midrule
     FGSM     & $L_\infty,\ 8/255$ & 96.01\% & 3.57\% & 1.7233 & 0.0628 \\
     \alert{DeepFool} & \alert{$L_2$（最小扰动）} & \alert{97.60\%} & \alert{2.15\%} & \alert{\textbf{0.1606}} & \alert{\textbf{0.0057}} \\
@@ -472,9 +481,9 @@
   \end{table}
   \vspace{0.5em}
   \begin{itemize}
-    \item DeepFool 的相对扰动 $\hat\rho_{adv}$ 仅 \textbf{0.0057}，约为 FGSM（0.063）的 \alert{$1/11$}、APGD（0.047）的 $1/8$；平均 $L_2$（0.16）同样低一个量级。
+    \item DeepFool 的相对扰动 $\hat\rho_{\mathrm{adv}}$ 仅 \textbf{0.0057}，约为 FGSM（0.063）的 \alert{$1/11$}、APGD（0.047）的 $1/8$；平均 $L_2$（0.16）同样低一个量级。
     \item 三者攻击成功率都较高，但 DeepFool 以\textbf{低一个量级}的扰动达到相近效果。
-    \item \textbf{样本量：} FGSM / APGD 为\textbf{全量 10000 张}，DeepFool 因计算成本较高采用 \textbf{1000 张}；干净准确率 FGSM/APGD 为 88.53\%、DeepFool 为 89.65\%（同一模型，子集不同）。
+    \item \textbf{样本量：} FGSM / APGD 使用\textbf{完整测试集 10000 张}，DeepFool 因计算成本较高采用 \textbf{1000 张}；干净准确率 FGSM/APGD 为 88.53\%、DeepFool 为 89.65\%（同一模型，不同评估子集）。
   \end{itemize}
 \end{frame}
 
@@ -493,7 +502,6 @@
   以 \textbf{DeepFool} 为例（每行一个样例，取 2 例）：左为\textbf{原图}，模型正确分类；
   中为叠加最小扰动后的\textbf{对抗图}，模型以高置信度\textbf{预测为相邻类别}；
   右为\textbf{放大显示}的扰动（真实幅度 $L_2 \approx 0.16$，肉眼几乎不可见）。
-  该结果表明：\alert{决策边界可能距离正常样本较近}。
 \end{frame}
 
 \begin{frame}{实测结果：扰动大小分布（FGSM vs DeepFool）}
@@ -535,8 +543,8 @@
     \includegraphics[width=0.46\linewidth]{tsne_clean_vs_adv_DeepFool.pdf}\hfill
     \includegraphics[width=0.46\linewidth]{tsne_clean_vs_adv_APGD.pdf}
   \end{center}
-  {\footnotesize 与上页同一嵌入。DeepFool（最小 $L_2$ 扰动）与 APGD（高强度 $L_\infty$）同样扰动类别簇结构，
-  印证模型决策发生改变；区别在于 DeepFool 所需扰动低一个量级（见前页 $L_2$/$\hat\rho_{adv}$ 对比）。}
+  {\footnotesize 与 Clean/FGSM 页使用同一嵌入。DeepFool 与 APGD 均改变类别簇结构；
+  DeepFool 的扰动规模显著更小（见 $L_2$/$\hat\rho_{\mathrm{adv}}$）。}
 \end{frame}
 
 % ================================================================
@@ -606,11 +614,11 @@
     \begin{column}{0.55\textwidth}
       \footnotesize
       \begin{itemize}
-        \item 训练集：全量 50000，原生 $32\times32$ + 增广
+        \item 训练集：完整训练集 50000 张，原生 $32\times32$ + 增广
         \item 内层攻击：\textbf{PGD-7}，$L_\infty$，$\varepsilon = 8/255$
         \item $\varepsilon$ 预热：前 5 轮从 $0.5\varepsilon$ 线性升到 $\varepsilon$
-        \item 损失：$(1-\lambda)\,\mathrm{CE}_{\text{clean}} + \lambda\,\mathrm{CE}_{\text{adv}}$，$\lambda=0.5$
-              （保留干净样本性能，\textbf{防止塌缩}）
+        \item 损失：$(1-\lambda)\,\mathrm{CE}_{\mathrm{clean}} + \lambda\,\mathrm{CE}_{\mathrm{adv}}$，$\lambda=0.5$
+              （保留干净样本性能，\textbf{降低性能退化风险}）
         \item 优化器：\texttt{SGD}（lr $=0.1$, mom $=0.9$, wd $=5\times10^{-4}$）
         \item 调度：\texttt{MultiStepLR} 在 40 / 60 轮 $\div 10$，共 \textbf{80} 轮
         \item 梯度裁剪：上限 $1.0$
@@ -620,9 +628,9 @@
       \begin{block}{鲁棒性评估控制项}
         \footnotesize
         \begin{itemize}
-          \item 干净/对抗损失\textbf{各半}，避免模型塌缩（Clean/Robust 双低）。
-          \item 评估用\textbf{强攻击}（APGD），并按强度阶梯 FGSM < PGD-20 < APGD 排查梯度混淆。
-          \item Clean 与 Robust Acc \textbf{配对报告}。
+          \item 干净/对抗损失\textbf{各半}，降低模型性能退化风险（Clean/Robust 双低）。
+          \item 评估采用\textbf{高强度攻击}（APGD），并按强度阶梯 FGSM < PGD-20 < APGD 检查梯度混淆。
+          \item Clean Acc 与 Robust Acc \textbf{联合报告}。
         \end{itemize}
       \end{block}
     \end{column}
@@ -639,7 +647,7 @@
 \end{frame}
 
 \begin{frame}{防御效果：普通模型 vs 鲁棒模型}
-  攻击强度阶梯：FGSM（弱）< PGD-20（标准基准）< APGD（高强度）。同一模型 Robust Acc 应\textbf{依次递减}；DeepFool 为\textbf{无 $\varepsilon$ 预算}的最小扰动攻击，单列作对照。
+  攻击强度阶梯：FGSM（较低强度）< PGD-20（标准基准）< APGD（高强度）。同一模型 Robust Acc 应\textbf{依次递减}；DeepFool 为\textbf{无 $\varepsilon$ 预算}的最小扰动攻击，单列作对照。
   \begin{table}
   \centering
   \footnotesize
@@ -654,11 +662,11 @@
   \end{table}
   \vspace{0.3em}
   \footnotesize
-  \textbf{结果解读：} 对抗训练有效时，鲁棒模型在三种\textbf{固定 $\varepsilon$} 攻击下 Robust Acc 应明显更高，代价是 Clean 略降。本实验 Clean 降 2.3 点（88.53\%→86.25\%），换来 Robust Acc 由近 0 升到 \textbf{45--56\%}，未见塌缩；且沿 FGSM > PGD-20 > APGD 依次递减，无梯度混淆。
+  \textbf{结果解读：} 对抗训练有效时，鲁棒模型在三种\textbf{固定 $\varepsilon$} 攻击下 Robust Acc 应明显更高，代价是 Clean 略降。本实验 Clean 降 2.3 点（88.53\%→86.25\%），换来 Robust Acc 由接近 0 升至 \textbf{45--56\%}，未出现明显性能退化；且沿 FGSM > PGD-20 > APGD 依次递减，未观察到梯度混淆。
   \\[0.2em]
-  \alert{DeepFool 两模型都≈0（鲁棒 0.9\% 略低于普通 2.2\%）：}无 $\varepsilon$ 预算、迭代到刚越界即停，几乎必然成功，差异为噪声——其防御信号不看 Robust Acc，而看\textbf{所需扰动大小}（下页 $\hat\rho_{adv}$）。
+  \alert{DeepFool Robust Acc 均接近 0（普通 2.2\%，鲁棒 0.9\%）：}该攻击无 $\varepsilon$ 预算，通常迭代至越过决策边界才停止；其防御信号主要体现在\textbf{所需扰动大小}（$\hat\rho_{\mathrm{adv}}$），而非 Robust Acc。
   \\[0.2em]
-  {\scriptsize 注：FGSM/PGD-20/APGD 全量 \textbf{10000 张}（$L_\infty,\varepsilon=8/255$）；DeepFool（$L_2$ 最小扰动）用 \textbf{1000 张}。}
+  {\scriptsize 注：FGSM/PGD-20/APGD 使用完整测试集 \textbf{10000 张}（$L_\infty,\varepsilon=8/255$）；DeepFool（$L_2$ 最小扰动）使用 \textbf{1000 张}。}
 \end{frame}
 
 \begin{frame}{防御效果：普通模型 vs 鲁棒模型（图示）}
@@ -666,8 +674,8 @@
     \includegraphics[height=0.6\textheight]{robustness_comparison.pdf}
   \end{center}
   \footnotesize
-  对抗训练后，鲁棒模型在 FGSM / PGD-20 / APGD 三种\textbf{固定 $\varepsilon$} 攻击下 Robust Acc 由近 0 升至 \textbf{45--56\%}（全量 10000 张），代价是 Clean 降约 2.3 点（88.53\%\,$\to$\,86.25\%），且沿强度阶梯依次递减，无梯度混淆。
-  最右 \textbf{DeepFool}（无 $\varepsilon$ 预算）两模型都≈0，仅作对照——其防御效果改看\textbf{所需扰动大小}（下页 $\hat\rho_{adv}$）。
+  对抗训练后，鲁棒模型在 FGSM / PGD-20 / APGD 三种\textbf{固定 $\varepsilon$} 攻击下 Robust Acc 由接近 0 升至 \textbf{45--56\%}（完整测试集 10000 张），代价是 Clean 降约 2.3 点（88.53\%\,$\to$\,86.25\%），且沿强度阶梯依次递减，未观察到梯度混淆。
+  图中 \textbf{DeepFool}（无 $\varepsilon$ 预算）仅作为最小扰动攻击对照；其防御效果需结合\textbf{所需扰动大小}（$\hat\rho_{\mathrm{adv}}$）进行分析。
 \end{frame}
 
 \begin{frame}{防御效果：DeepFool 最小扰动（边界距离视角）}
@@ -679,14 +687,14 @@
       \footnotesize
       DeepFool 求解\textbf{最小扰动}，其大小可近似表示样本到决策边界的距离；数值越大，模型鲁棒性越强。
       \begin{itemize}
-        \item 普通模型：$\hat\rho_{adv}\approx\textbf{0.006}$（$L_2\approx0.18$）。
-        \item 鲁棒模型：$\hat\rho_{adv}\approx\textbf{0.043}$（$L_2\approx1.22$）。
+        \item 普通模型：$\hat\rho_{\mathrm{adv}}\approx\textbf{0.006}$（$L_2\approx0.18$）。
+        \item 鲁棒模型：$\hat\rho_{\mathrm{adv}}\approx\textbf{0.043}$（$L_2\approx1.22$）。
         \item 诱导鲁棒模型产生误分类需要 \alert{$\sim$7 倍}大的扰动。
       \end{itemize}
       \vspace{0.3em}
-      与固定预算口径（前页 Robust Acc）互补：从\textbf{边界距离}角度同样证明对抗训练有效。
+      与固定预算评估范式（Robust Acc）互补：从\textbf{边界距离}角度同样证明对抗训练有效。
       \\[0.3em]
-      \scriptsize（1000 张，仅统计干净样本上分类正确且经攻击后变为误分类的样本；普通模型 $L_2$ 0.18 略大于前页攻击表的 0.16，因后者按 evaluate 口径将未攻击成功样本一并平均。）
+      \scriptsize（1000 张，仅统计干净样本上分类正确且经攻击后变为误分类的样本；普通模型 $L_2$ 0.18 略大于攻击对比表中的 0.16，原因是后者在 evaluate 统计方式下同时纳入未攻击成功样本。）
     \end{column}
   \end{columns}
 \end{frame}
@@ -751,12 +759,12 @@
     \item \textbf{DeepFool 攻击：} 局部线性化、投影到最近决策边界，求\textbf{最小 $L_2$ 扰动}；
           实测平均 $L_2$ 仅 \textbf{0.16}，约 FGSM 的 $1/11$，攻击成功率相近。
     \item \textbf{对抗训练：} 用 PGD（非 DeepFool）做 min-max 训练得到鲁棒模型；
-          可靠评估需 Clean/Robust 配对 + 强攻击（APGD）。
+          可靠评估需同时报告 Clean/Robust 指标，并采用高强度攻击（APGD）。
   \end{enumerate}
   \vspace{0.5em}
   \begin{block}{结论概括}
     DeepFool 可量化模型到决策边界的距离，PGD 对抗训练可提升固定扰动预算下的鲁棒性；
-    鲁棒性评估必须采用强攻击与配对指标，以避免高估防御效果。
+    鲁棒性评估必须采用高强度攻击，并同时报告 Clean/Robust 指标，以避免高估防御效果。
   \end{block}
 \end{frame}
 
